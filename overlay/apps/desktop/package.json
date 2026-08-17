@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run tests/runtime.spec.ts",
+    "test": "vitest run tests/runtime.spec.ts tests/ui-compatibility.spec.ts",
     "test:e2e": "vitest run tests/main.e2e.spec.ts",
     "package:win": "tsx scripts/package.ts"
   },

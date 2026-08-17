@@ -12,6 +12,7 @@ import {
   waitForHttpReady,
 } from './runtime.ts'
 import type { BackendProcessHandle } from './runtime.ts'
+import { installDesktopUiCompatibility } from './ui-compatibility.ts'
 
 const DEFAULT_PORT = 3080
 const PORT_ATTEMPTS = 100
@@ -107,6 +108,7 @@ function createWindow(): BrowserWindow {
     },
     width: 1440,
   })
+  installDesktopUiCompatibility(window.webContents)
   window.once('ready-to-show', () => window.show())
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://') || url.startsWith('http://')) void shell.openExternal(url)

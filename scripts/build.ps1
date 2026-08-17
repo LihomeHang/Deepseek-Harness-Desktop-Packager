@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$SourceRoot,
     [string]$UpstreamUrl = 'https://github.com/deepseek-ai/deepseek-harness.git',
     [string]$UpstreamRef,
@@ -253,6 +253,7 @@ try {
         Invoke-Native -FilePath 'corepack' -ArgumentList @(
             'pnpm', 'exec', 'vitest', 'run',
             'apps/desktop/tests/runtime.spec.ts',
+            'apps/desktop/tests/ui-compatibility.spec.ts',
             'apps/desktop/tests/package.spec.ts'
         ) -WorkingDirectory $workingRoot
     }
