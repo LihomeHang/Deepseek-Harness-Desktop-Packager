@@ -1,0 +1,15 @@
+# 构建产物与本地缓存（不上传）
+.cache/
+.work/
+dist/
+logs/
+node_modules/
+
+# 编辑器与系统文件
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log

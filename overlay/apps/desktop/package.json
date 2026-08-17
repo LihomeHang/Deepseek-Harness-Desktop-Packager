@@ -1,0 +1,136 @@
+{
+  "name": "@deepseek-ai/dsh-desktop",
+  "description": "Windows desktop application for the DeepSeek Harness Web UI",
+  "version": "0.1.0-rc.5",
+  "private": true,
+  "type": "module",
+  "main": "lib/main.js",
+  "files": [
+    "assets",
+    "lib",
+    "README.md",
+    "README.zh.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run tests/runtime.spec.ts",
+    "test:e2e": "vitest run tests/main.e2e.spec.ts",
+    "package:win": "tsx scripts/package.ts"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis-plugin-group": "workspace:^",
+    "@deepseek-ai/cosmokit": "workspace:^",
+    "@deepseek-ai/dsh": "workspace:^",
+    "@deepseek-ai/dsh-agent-default-model": "workspace:^",
+    "@deepseek-ai/dsh-agent-presets": "workspace:^",
+    "@deepseek-ai/dsh-api-gateway": "workspace:^",
+    "@deepseek-ai/dsh-api-remotes": "workspace:^",
+    "@deepseek-ai/dsh-atomic-write": "workspace:^",
+    "@deepseek-ai/dsh-client-connection": "workspace:^",
+    "@deepseek-ai/dsh-client-locale": "workspace:^",
+    "@deepseek-ai/dsh-client-modules": "workspace:^",
+    "@deepseek-ai/dsh-client-runtime": "workspace:^",
+    "@deepseek-ai/dsh-client-schema-form": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-attachment": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-commands": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-conversation": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-directory-picker-browse": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-directory-picker-native": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-input-trigger": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-primitives": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-settings": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-sidebar": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-slots": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-theme": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-tool": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-workspace": "workspace:^",
+    "@deepseek-ai/dsh-client-web-react": "workspace:^",
+    "@deepseek-ai/dsh-command-feedback": "workspace:^",
+    "@deepseek-ai/dsh-cordis-client-runner": "workspace:^",
+    "@deepseek-ai/dsh-host-directory-picker-browse": "workspace:^",
+    "@deepseek-ai/dsh-host-directory-picker-native": "workspace:^",
+    "@deepseek-ai/dsh-host-plugin-inventory": "workspace:^",
+    "@deepseek-ai/dsh-host-webserver": "workspace:^",
+    "@deepseek-ai/dsh-message-feedback": "workspace:^",
+    "@deepseek-ai/dsh-pwsh-local": "workspace:^",
+    "@deepseek-ai/dsh-session-stats": "workspace:^",
+    "@deepseek-ai/dsh-session-telemetry": "workspace:^",
+    "@deepseek-ai/dsh-session-title-llm": "workspace:^",
+    "@deepseek-ai/dsh-spill": "workspace:^",
+    "@deepseek-ai/dsh-storage": "workspace:^",
+    "@deepseek-ai/dsh-storage-domain": "workspace:^",
+    "@deepseek-ai/dsh-typert-registry": "workspace:^",
+    "@deepseek-ai/schemastery": "workspace:^",
+    "pnpm": "11.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.0",
+    "electron": "43.4.0",
+    "electron-builder": "26.15.3",
+    "playwright": "^1.61.1",
+    "png-to-ico": "3.0.2",
+    "sharp": "0.35.3",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  },
+  "build": {
+    "appId": "ai.deepseek.harness.desktop",
+    "productName": "DeepSeek Harness",
+    "asar": false,
+    "electronVersion": "43.4.0",
+    "npmRebuild": false,
+    "compression": "maximum",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "assets/**/*",
+      "lib/**/*",
+      "package.json",
+      "README.md",
+      "README.zh.md"
+    ],
+    "extraResources": [
+      {
+        "from": "bin",
+        "to": "bin"
+      },
+      {
+        "from": "node-runtime",
+        "to": "node-runtime"
+      },
+      {
+        "from": "node_modules",
+        "to": "app/node_modules",
+        "filter": [
+          "**/*",
+          "!.bin{,/**/*}",
+          "!.pnpm{,/**/*}"
+        ]
+      }
+    ],
+    "win": {
+      "artifactName": "DeepSeek-Harness-Setup-${version}-${arch}.${ext}",
+      "icon": "assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false,
+      "oneClick": false,
+      "perMachine": false,
+      "shortcutName": "DeepSeek Harness",
+      "warningsAsErrors": false
+    }
+  }
+}
