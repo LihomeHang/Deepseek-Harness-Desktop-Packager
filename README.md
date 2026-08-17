@@ -32,13 +32,36 @@ DeepSeek-Harness-Setup-<version>-x64.json
 
 构建日志位于 `logs/`。安装包没有数字签名，因此 Windows SmartScreen 可能提示未知发布者。
 
-安装完成后，新开 PowerShell 即可使用随包提供的 `dsh` 和 `pnpm`。例如给桌面端的 Web profile 安装插件：
+安装完成后即可使用随包提供的 `dsh` 和 `pnpm` 来管理插件，详见下方“安装后如何添加插件”。
+
+## 安装后如何添加插件
+
+安装并首次启动桌面应用后，桌面端使用 `web` profile。插件通过随包提供的 `dsh` 命令管理，不需要另装 Node.js 或 pnpm。
+
+先新开一个 PowerShell 窗口（让 `PATH` 生效），然后运行：
 
 ```powershell
 dsh plugin --profile web add <插件包名>
 ```
 
-插件状态保存在 `%APPDATA%\DeepSeek Harness\dsh-home`，安装后重启桌面应用生效，不需要另装 Node.js 或 pnpm。
+`<插件包名>` 填写 npm 包名；具体支持的参数格式可先运行 `dsh plugin --help` 查看。
+
+常用命令：
+
+```powershell
+# 添加插件
+dsh plugin --profile web add <插件包名>
+
+# 查看当前 web profile 已安装的插件/依赖
+dsh plugin --profile web list
+
+# 移除插件
+dsh plugin --profile web remove <插件包名>
+```
+
+插件状态保存在 `%APPDATA%\DeepSeek Harness\dsh-home`，命令行和桌面应用共用同一份数据。添加或移除插件后，**重启桌面应用**（完全退出后重新打开）即可重新加载插件。
+
+如果不确定某个插件的准确包名，先确认它已发布到 npm，再把包名传给 `add` 命令。
 
 ## 打包环境不满足怎么办
 
