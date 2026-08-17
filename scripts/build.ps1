@@ -4,7 +4,8 @@ param(
     [string]$UpstreamRef,
     [switch]$Offline,
     [switch]$KeepWorkDirectory,
-    [switch]$SkipTests
+    [switch]$SkipTests,
+    [switch]$AutoInstall
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,6 +27,7 @@ if ($PSBoundParameters.ContainsKey('UpstreamRef')) { $UpstreamRef = $PSBoundPara
 if ($PSBoundParameters.ContainsKey('Offline')) { $Offline = $PSBoundParameters['Offline'] }
 if ($PSBoundParameters.ContainsKey('KeepWorkDirectory')) { $KeepWorkDirectory = $PSBoundParameters['KeepWorkDirectory'] }
 if ($PSBoundParameters.ContainsKey('SkipTests')) { $SkipTests = $PSBoundParameters['SkipTests'] }
+if ($PSBoundParameters.ContainsKey('AutoInstall')) { $AutoInstall = $PSBoundParameters['AutoInstall'] }
 $overlayRoot = Join-Path $projectRoot 'overlay'
 $cacheRoot = Join-Path $projectRoot '.cache'
 $cacheRepository = Join-Path $cacheRoot 'upstream'
@@ -80,19 +82,54 @@ function Invoke-NativeCapture {
 }
 
 function Assert-Prerequisites {
+    param([bool]$AutoInstall)
+
+    $missing = @()
     foreach ($name in @('git', 'node', 'corepack')) {
         if ($null -eq (Get-Command $name -ErrorAction SilentlyContinue)) {
-            throw "Required command is not available: $name"
+            $missing += $name
         }
     }
+
+    if ($missing.Count -gt 0) {
+        if ($AutoInstall) {
+            Write-Host '检测到缺少依赖，尝试通过 winget 自动安装...' -ForegroundColor Yellow
+            $winget = Get-Command winget -ErrorAction SilentlyContinue
+            if ($null -eq $winget) {
+                throw '未找到 winget，无法自动安装。请手动安装缺失的工具后重试。'
+            }
+            if ($missing -contains 'git') {
+                Invoke-Native -FilePath 'winget' -ArgumentList @('install', '--id', 'Git.Git', '-e', '--source', 'winget', '--accept-package-agreements', '--accept-source-agreements')
+            }
+            if ($missing -contains 'node' -or $missing -contains 'corepack') {
+                Invoke-Native -FilePath 'winget' -ArgumentList @('install', '--id', 'OpenJS.NodeJS.LTS', '-e', '--source', 'winget', '--accept-package-agreements', '--accept-source-agreements')
+            }
+            throw '依赖已尝试安装。新安装的程序不会加入当前命令行窗口的 PATH，请关闭并重新打开命令窗口（必要时重启电脑）后再次双击 build.cmd。'
+        }
+
+        Write-Host ''
+        Write-Host '打包环境不满足，缺少以下工具：' -ForegroundColor Yellow
+        if ($missing -contains 'git') {
+            Write-Host '  - Git         下载：https://git-scm.com/download/win'
+        }
+        if ($missing -contains 'node' -or $missing -contains 'corepack') {
+            Write-Host '  - Node.js 24+ 下载：https://nodejs.org/  （corepack 随 Node.js 一起安装）'
+        }
+        Write-Host ''
+        Write-Host '安装完成后，重新打开命令窗口，再双击 build.cmd。'
+        Write-Host '若系统已安装 winget，也可运行：.\build.cmd -AutoInstall'
+        Write-Host ''
+        throw 'Prerequisite check failed.'
+    }
+
     $platform = Invoke-NativeCapture -FilePath 'node' -ArgumentList @('-p', 'process.platform')
     $architecture = Invoke-NativeCapture -FilePath 'node' -ArgumentList @('-p', 'process.arch')
     $nodeMajor = [int](Invoke-NativeCapture -FilePath 'node' -ArgumentList @('-p', "process.versions.node.split('.')[0]"))
     if ($platform -ne 'win32' -or $architecture -ne 'x64') {
-        throw "This packager requires Windows x64; detected $platform/$architecture."
+        throw "本打包器只支持 Windows x64，当前环境为 $platform/$architecture。"
     }
     if ($nodeMajor -lt 24) {
-        throw "This packager requires Node.js 24 or newer; detected major version $nodeMajor."
+        throw "当前 Node.js 主版本为 $nodeMajor，本打包器需要 Node.js 24 或更高版本。请升级：https://nodejs.org/ （或运行 .\build.cmd -AutoInstall 尝试自动升级）。"
     }
 }
 
@@ -184,7 +221,7 @@ $sourceInfo = $null
 
 try {
     Write-Host "Build log: $logPath"
-    Assert-Prerequisites
+    Assert-Prerequisites -AutoInstall:$AutoInstall
     if ([string]::IsNullOrWhiteSpace($SourceRoot)) {
         Write-Host 'Preparing the latest official upstream revision...'
         $sourceInfo = New-RemoteWorkingCopy

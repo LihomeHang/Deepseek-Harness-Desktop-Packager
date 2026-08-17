@@ -40,6 +40,25 @@ dsh plugin --profile web add <插件包名>
 
 插件状态保存在 `%APPDATA%\DeepSeek Harness\dsh-home`，安装后重启桌面应用生效，不需要另装 Node.js 或 pnpm。
 
+## 打包环境不满足怎么办
+
+`build.cmd` 会先自动检查环境。如果缺少 Git、Node.js 24+ 或 corepack，会明确提示缺少哪些工具以及下载地址，不会直接抛出一堆看不懂的错误。
+
+手动安装：
+
+- Git：https://git-scm.com/download/win
+- Node.js 24 或更高版本：https://nodejs.org/ （corepack 随 Node.js 一起安装）
+
+如果你的 Windows 已自带 winget（Windows 11 通常都有），可以直接运行：
+
+```powershell
+.\build.cmd -AutoInstall
+```
+
+脚本会尝试用 winget 自动安装缺失的 Git 或 Node.js。安装完成后需要关闭并重新打开命令窗口，再双击 `build.cmd`。
+
+注意：自动安装依赖 winget，且可能需要管理员权限；如果自动安装失败，按提示手动安装即可。
+
 ## 配置上游仓库地址
 
 上游地址默认指向官方仓库，会自动从 GitHub 拉取。如果需要换源（例如 fork、镜像或私有仓库），编辑根目录的 `build.config.ps1`：
