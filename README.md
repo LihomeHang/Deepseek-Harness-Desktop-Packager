@@ -1,5 +1,7 @@
 # DeepSeek Harness Windows 桌面打包器
 
+[English](README.en.md) | 中文
+
 这是独立于 [`deepseek-ai/deepseek-harness`](https://github.com/deepseek-ai/deepseek-harness) 的 Windows x64 打包项目。官方源码只作为构建输入；桌面端代码保存在 `overlay/apps/desktop`，构建时注入到临时检出目录，不会改动、提交或推送官方仓库。
 
 用户把本仓库下载下来，双击 `build.cmd` 即可生成 Windows 安装包，无需手动维护上游源码。
