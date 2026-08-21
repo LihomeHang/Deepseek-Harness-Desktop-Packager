@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import type { ChildProcess } from 'node:child_process'
-import { createWriteStream, existsSync } from 'node:fs'
+import { createWriteStream, existsSync, globSync } from 'node:fs'
 import { copyFile, cp, lstat, mkdir, readFile, readdir, realpath, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -35,6 +35,14 @@ export interface RuntimeClosureManifest {
   private?: boolean
   type?: string
   version?: string
+}
+
+/** Workspace package metadata used to close required peer dependencies. */
+export interface WorkspacePackageManifest {
+  dependencies?: Record<string, string>
+  optionalDependencies?: Record<string, string>
+  peerDependencies?: Record<string, string>
+  peerDependenciesMeta?: Record<string, { optional?: boolean }>
 }
 
 /** A platform-compatible child process command. */
@@ -72,6 +80,50 @@ export function createRuntimeClosureManifest(
     type: 'module',
     version: desktopManifest.version,
   }
+}
+
+/** Add every non-optional workspace peer reachable through the production dependency graph. */
+export function expandWorkspacePeerDependencies(
+  runtimeClosure: RuntimeClosureManifest,
+  workspace: ReadonlyMap<string, WorkspacePackageManifest>,
+): RuntimeClosureManifest {
+  const dependencies = { ...runtimeClosure.dependencies }
+  const queue = Object.keys(dependencies).filter(name => workspace.has(name))
+  const visited = new Set<string>()
+  for (let index = 0; index < queue.length; index += 1) {
+    const packageName = queue[index]
+    if (packageName === undefined || visited.has(packageName)) continue
+    visited.add(packageName)
+    const manifest = workspace.get(packageName)
+    if (manifest === undefined) continue
+    for (const dependency of Object.keys({ ...manifest.dependencies, ...manifest.optionalDependencies }).sort()) {
+      if (workspace.has(dependency) && !visited.has(dependency)) queue.push(dependency)
+    }
+    const peerMeta = manifest.peerDependenciesMeta ?? {}
+    for (const [peer, version] of Object.entries(manifest.peerDependencies ?? {}).sort(([left], [right]) => left.localeCompare(right))) {
+      if (!workspace.has(peer) || peerMeta[peer]?.optional === true) continue
+      if (dependencies[peer] === undefined) dependencies[peer] = version
+      if (!visited.has(peer)) queue.push(peer)
+    }
+  }
+  return {
+    ...runtimeClosure,
+    dependencies: Object.fromEntries(Object.entries(dependencies).sort(([left], [right]) => left.localeCompare(right))),
+  }
+}
+
+async function loadWorkspacePackageManifests(repositoryRoot: string): Promise<Map<string, WorkspacePackageManifest>> {
+  const paths = globSync([
+    'apps/*/package.json',
+    'packages/*/*/package.json',
+    'vendor/*/package.json',
+  ], { cwd: repositoryRoot }).sort()
+  const workspace = new Map<string, WorkspacePackageManifest>()
+  for (const path of paths) {
+    const manifest = JSON.parse(await readFile(join(repositoryRoot, path), 'utf8')) as WorkspacePackageManifest & { name?: string }
+    if (manifest.name !== undefined) workspace.set(manifest.name, manifest)
+  }
+  return workspace
 }
 
 /** Expose every staged runtime root so electron-builder cannot prune closure-only packages. */
@@ -326,10 +378,39 @@ async function installNodeRuntime(stageApp: string): Promise<void> {
   const runtimeDirectory = join(stageApp, 'node-runtime')
   await mkdir(runtimeDirectory, { recursive: true })
   await copyFile(process.execPath, join(runtimeDirectory, 'node.exe'))
-  const licenseUrl = `https://raw.githubusercontent.com/nodejs/node/${process.version}/LICENSE`
-  const response = await fetch(licenseUrl)
-  if (!response.ok) throw new Error(`Unable to download the Node.js license from ${licenseUrl}: HTTP ${response.status}.`)
-  await writeFile(join(runtimeDirectory, 'LICENSE'), await response.text(), 'utf8')
+  const licenseRef = process.version
+  const licenseSources = [
+    `https://raw.githubusercontent.com/nodejs/node/${process.version}/LICENSE`,
+    `https://api.github.com/repos/nodejs/node/contents/LICENSE?ref=${licenseRef}`,
+  ]
+  const failures: string[] = []
+  let licenseText: string | undefined
+  for (const licenseUrl of licenseSources) {
+    try {
+      const response = await fetch(licenseUrl, { headers: { 'user-agent': 'deepseek-harness-packager' } })
+      if (!response.ok) {
+        failures.push(`${licenseUrl}: HTTP ${response.status}`)
+        continue
+      }
+      if (licenseUrl.includes('api.github.com')) {
+        const payload = await response.json() as { content?: string; encoding?: string }
+        if (payload.encoding !== 'base64' || typeof payload.content !== 'string') {
+          failures.push(`${licenseUrl}: unexpected GitHub API response`)
+          continue
+        }
+        licenseText = Buffer.from(payload.content.replace(/\s/g, ''), 'base64').toString('utf8')
+      } else {
+        licenseText = await response.text()
+      }
+      break
+    } catch (error) {
+      failures.push(`${licenseUrl}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+  if (licenseText === undefined) {
+    throw new Error(`Unable to download the Node.js license for ${process.version}. ${failures.join('; ')}`)
+  }
+  await writeFile(join(runtimeDirectory, 'LICENSE'), licenseText, 'utf8')
   await writeFile(join(runtimeDirectory, 'VERSION'), `${process.version}\n`, 'utf8')
 }
 
@@ -399,9 +480,14 @@ export async function packageWindowsDesktop(repositoryRoot: string): Promise<str
   await run(repositoryRoot, command('corepack'), ['pnpm', '--filter', '@deepseek-ai/dsh-desktop', 'run', 'build'])
   await rm(paths.stageRoot, { force: true, recursive: true })
   await mkdir(paths.stageRoot, { recursive: true })
-  const canonicalManifest = JSON.parse(await readFile(join(repositoryRoot, CANONICAL_RUNTIME_MANIFEST), 'utf8')) as RuntimeClosureManifest
+  const canonicalManifestPath = join(repositoryRoot, CANONICAL_RUNTIME_MANIFEST)
+  const canonicalManifestContent = await readFile(canonicalManifestPath, 'utf8')
+  const canonicalManifest = JSON.parse(canonicalManifestContent) as RuntimeClosureManifest
   const desktopManifest = JSON.parse(await readFile(join(paths.appRoot, 'package.json'), 'utf8')) as RuntimeClosureManifest
-  const runtimeClosure = createRuntimeClosureManifest(canonicalManifest, desktopManifest)
+  const runtimeClosure = expandWorkspacePeerDependencies(
+    createRuntimeClosureManifest(canonicalManifest, desktopManifest),
+    await loadWorkspacePackageManifests(repositoryRoot),
+  )
   const closureManifestPath = join(paths.stageRoot, 'runtime-closure.package.json')
   await writeFile(closureManifestPath, `${JSON.stringify(runtimeClosure, null, 2)}\n`)
   await run(repositoryRoot, workspaceCommand(repositoryRoot, 'tsx'), [
@@ -409,18 +495,23 @@ export async function packageWindowsDesktop(repositoryRoot: string): Promise<str
     '--manifest',
     closureManifestPath,
   ])
-  await run(repositoryRoot, command('corepack'), [
-    'pnpm',
-    '--filter',
-    CANONICAL_RUNTIME_PACKAGE,
-    'deploy',
-    '--legacy',
-    '--prod',
-    '--config.node-linker=hoisted',
-    '--config.auto-install-peers=false',
-    '--config.link-workspace-packages=true',
-    paths.stageRuntime,
-  ])
+  await writeFile(canonicalManifestPath, `${JSON.stringify({ ...canonicalManifest, dependencies: runtimeClosure.dependencies }, null, 2)}\n`)
+  try {
+    await run(repositoryRoot, command('corepack'), [
+      'pnpm',
+      '--filter',
+      CANONICAL_RUNTIME_PACKAGE,
+      'deploy',
+      '--legacy',
+      '--prod',
+      '--config.node-linker=hoisted',
+      '--config.auto-install-peers=false',
+      '--config.link-workspace-packages=true',
+      paths.stageRuntime,
+    ])
+  } finally {
+    await writeFile(canonicalManifestPath, canonicalManifestContent)
+  }
   await restoreLegacyHoists(paths.stageRuntime, join(repositoryRoot, 'python', 'sdk-runtime', 'node_modules'))
   await materializeLinks(join(paths.stageRuntime, 'node_modules'))
   await run(repositoryRoot, command('corepack'), [

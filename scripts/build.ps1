@@ -206,10 +206,20 @@ function Remove-WorkingCopy {
         }
         catch {
             if (Test-Path -LiteralPath $workingRoot) {
-                Remove-Item -LiteralPath ("\\?\" + $workingRoot) -Recurse -Force
+                try {
+                    Remove-Item -LiteralPath ("\\?\" + $workingRoot) -Recurse -Force -ErrorAction Stop
+                }
+                catch {
+                    Write-Warning "Could not remove long-path temporary build source: $_"
+                }
             }
         }
-        Invoke-Native -FilePath 'git' -ArgumentList @('-C', $cacheRepository, 'worktree', 'prune')
+        try {
+            Invoke-Native -FilePath 'git' -ArgumentList @('-C', $cacheRepository, 'worktree', 'prune')
+        }
+        catch {
+            Write-Warning "Could not prune temporary Git worktree: $_"
+        }
         return
     }
     Remove-Item -LiteralPath ("\\?\" + $workingRoot) -Recurse -Force

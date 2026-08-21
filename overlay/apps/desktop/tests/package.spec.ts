@@ -8,6 +8,7 @@ import {
   createPackagedDesktopManifest,
   createRuntimeClosureManifest,
   desktopBuildPaths,
+  expandWorkspacePeerDependencies,
   mergeCanonicalRuntime,
   packagingEnvironment,
   resolveCommandInvocation,
@@ -103,6 +104,27 @@ describe('desktop package build', () => {
         '@deepseek-ai/dsh-timeout': 'workspace:^',
       },
       name: '@deepseek-ai/dsh-desktop',
+    })
+  })
+
+  it('adds required workspace peers to the deploy root', () => {
+    const closure = createRuntimeClosureManifest(
+      { dependencies: { '@deepseek-ai/dsh-settings': 'workspace:^' } },
+      { dependencies: {} },
+    )
+    const workspace = new Map([
+      ['@deepseek-ai/dsh-settings', {
+        dependencies: { '@deepseek-ai/dsh-settings-file': 'workspace:^' },
+      }],
+      ['@deepseek-ai/dsh-settings-file', {
+        peerDependencies: { '@deepseek-ai/dsh-atomic-write': 'workspace:^' },
+      }],
+      ['@deepseek-ai/dsh-atomic-write', {}],
+    ])
+
+    expect(expandWorkspacePeerDependencies(closure, workspace).dependencies).toMatchObject({
+      '@deepseek-ai/dsh-atomic-write': 'workspace:^',
+      '@deepseek-ai/dsh-settings': 'workspace:^',
     })
   })
 

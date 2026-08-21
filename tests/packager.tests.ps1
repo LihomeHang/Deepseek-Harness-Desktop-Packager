@@ -47,9 +47,19 @@ try {
     Assert-Equal '9.8.7' $version 'The upstream version was not returned.'
     $desktopManifest = Get-Content -LiteralPath (Join-Path $workingRoot 'apps\desktop\package.json') -Raw | ConvertFrom-Json
     Assert-Equal '9.8.7' $desktopManifest.version 'The desktop version was not synchronized.'
+    Assert-Equal 'workspace:^' $desktopManifest.dependencies.'@deepseek-ai/dsh' 'The desktop CLI runtime dependency is missing.'
+    Assert-Equal '11.7.0' $desktopManifest.dependencies.pnpm 'The bundled pnpm dependency is missing.'
+    $desktopDependencyNames = @($desktopManifest.dependencies.psobject.Properties.Name | Sort-Object)
+    Assert-Equal '@deepseek-ai/cordis-plugin-group,@deepseek-ai/cosmokit,@deepseek-ai/dsh,@deepseek-ai/schemastery,pnpm' ($desktopDependencyNames -join ',') 'The desktop overlay retains stale direct workspace dependencies.'
     Assert-True (Test-Path -LiteralPath (Join-Path $workingRoot 'apps\desktop\src\main.ts')) 'The desktop overlay was not installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $workingRoot 'apps\desktop\bin\dsh.cmd')) 'The dsh command shim was not installed.'
     Assert-True (Test-Path -LiteralPath (Join-Path $workingRoot 'apps\desktop\bin\pnpm.cmd')) 'The bundled pnpm command shim was not installed.'
+    $installerInclude = Get-Content -LiteralPath (Join-Path $workingRoot 'apps\desktop\build\installer.nsh') -Raw
+    Assert-True ($installerInclude -match '(?m)^!macro customCheckAppRunning$') 'The installer does not override the default running-app check.'
+    Assert-True ($installerInclude -match '(?m)^Function un\.CloseDeepSeekHarnessProcesses$') 'The installer does not provide an uninstaller-safe process shutdown function.'
+    Assert-True ($installerInclude -match 'taskkill\.exe.*?/T /F') 'The installer does not stop the desktop process tree before an upgrade.'
+    Assert-True ($installerInclude -match 'ExecutablePath.*?StartsWith') 'The installer does not limit process shutdown to the installed application directory.'
+    Assert-True ($installerInclude -notmatch '(?m)^\s*Abort\s*$') 'The installer can abort an upgrade when its best-effort shutdown check fails.'
 
     $buildWorkContainer = Get-BuildWorkContainer
     Assert-True ($buildWorkContainer.StartsWith([System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()), [System.StringComparison]::OrdinalIgnoreCase)) 'The build work container is not under the system temporary directory.'
